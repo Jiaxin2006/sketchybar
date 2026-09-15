@@ -281,10 +281,11 @@ def render_stats(db, state, now, sender):
     if last:
         discarded = json.loads(last[0])
         restore_label += f" · {CATEGORIES[discarded['category']]} {duration(discarded['elapsed'])}"
+    discard_color = '0xffa33b32' if state['mode'] != 'idle' else '0x661e1e1e'
     args += ['--set', 'focus.restore', f'label={restore_label}',
              f'label.color={"0xff1e1e1e" if last else "0x661e1e1e"}',
              '--set', 'focus.discard',
-             f'label.color={"0xffa33b32" if state['mode'] != 'idle' else "0x661e1e1e"}']
+             f'label.color={discard_color}']
     if sender == 'mouse.clicked':
         bar('--set', 'timer_category', 'popup.drawing=off')
         current = json.loads(subprocess.check_output(['sketchybar', '--query', 'focus']))
