@@ -1,0 +1,214 @@
+#!/bin/bash
+
+# SketchyBar config
+# https://github.com/FelixKratz/dotfiles
+
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+
+##### Bar Appearance #####
+sketchybar --bar position=top \
+                 height=30 \
+                 blur_radius=30 \
+                 color=0x55ffffff \
+                 corner_radius=10 \
+                 margin=10 \
+                 y_offset=3 \
+                 padding_left=14 \
+                 padding_right=14
+
+##### Changing Defaults #####
+default=(
+  padding_left=5
+  padding_right=5
+  icon.font="Hack Nerd Font:Bold:14.0"
+  label.font="Hack Nerd Font:Bold:12.5"
+  icon.color=0xff1e1e1e
+  label.color=0xff1e1e1e
+  icon.padding_left=3
+  icon.padding_right=3
+  label.padding_left=3
+  label.padding_right=3
+  popup.background.color=0xf5f7f7f7
+  popup.background.corner_radius=10
+  popup.background.border_width=1
+  popup.background.border_color=0x22000000
+  popup.background.shadow.drawing=off
+)
+sketchybar --default "${default[@]}"
+
+##### Left: timer, focus segments, CPU/RAM, front app #####
+sketchybar --add item timer left \
+           --set timer icon=󰄉 \
+                       label="Timer" \
+                       update_freq=0 \
+                       script="$PLUGIN_DIR/timer.sh" \
+           --subscribe timer mouse.clicked system_will_sleep system_woke
+
+# Category picker keeps the existing timer's left/right click gestures.
+sketchybar --add item timer_category left \
+           --set timer_category label="Research ▾" icon.drawing=off \
+                     script="$PLUGIN_DIR/timer.sh" popup.align=left \
+           --subscribe timer_category mouse.clicked mouse.exited.global space_change display_change front_app_switched
+for category in research course social uncategorized; do
+  case "$category" in
+    research) title="Research" ;; course) title="Study" ;;
+    social) title="Service" ;; uncategorized) title="Other" ;;
+  esac
+  sketchybar --add item "timer_category.$category" popup.timer_category \
+             --set "timer_category.$category" label="$title" icon.drawing=off \
+               label.font="PingFang SC:Medium:12.0" label.width=84 label.align=left \
+               label.padding_left=10 label.padding_right=10 padding_left=5 padding_right=5 \
+               background.color=0x12000000 background.corner_radius=5 background.height=25 \
+               click_script="\"$PLUGIN_DIR/timer.sh\""
+done
+
+# Today's total + continuous per-session track (built by plugins/focus.sh).
+# Track refreshes on save/date change; popup statistics poll only while open.
+sketchybar --add item focus left \
+           --set focus icon.drawing=off \
+                       label="0m" \
+                       script="$PLUGIN_DIR/focus.sh" \
+                       update_freq=0 \
+                       padding_left=6 \
+                       padding_right=2 \
+                       popup.align=left \
+           --subscribe focus mouse.clicked mouse.exited.global space_change display_change front_app_switched
+
+# Daily and weekly category totals; refreshed while the popup is open.
+for period in day week; do
+  sketchybar --add item "focus.$period" popup.focus \
+             --set "focus.$period" icon.drawing=off label="统计" \
+               label.font="PingFang SC:Semibold:13.0" label.padding_left=12 label.padding_right=12
+  for category in research course social uncategorized; do
+    sketchybar --add item "focus.$period.$category" popup.focus \
+               --set "focus.$period.$category" icon.drawing=off label="0分" \
+                 label.font="PingFang SC:Regular:13.0" label.padding_left=12 label.padding_right=12
+  done
+done
+sketchybar --add item focus.note popup.focus \
+           --set focus.note icon.drawing=off label="" \
+             label.font="PingFang SC:Regular:11.0" label.color=0x991e1e1e \
+             label.padding_left=12 label.padding_right=12
+
+sketchybar --add item cpu left \
+           --set cpu icon= \
+                     update_freq=5 \
+                     script="$PLUGIN_DIR/cpu.sh" \
+           --add item ram left \
+           --set ram icon= \
+                     update_freq=5 \
+                     script="$PLUGIN_DIR/ram.sh" \
+           --add item chevron left \
+           --set chevron icon= label.drawing=off \
+           --add item front_app left \
+           --set front_app icon.drawing=off \
+                           script="$PLUGIN_DIR/front_app.sh" \
+                           popup.align=left \
+                           popup.horizontal=on \
+           --subscribe front_app front_app_switched mouse.clicked mouse.exited.global
+
+# Native app menus (File / Edit / …); filled on front_app click
+for i in $(seq 1 12); do
+  sketchybar --add item "app_menu.$i" popup.front_app \
+             --set "app_menu.$i" drawing=off \
+                                 icon.drawing=off \
+                                 label="" \
+                                 label.padding_left=8 \
+                                 label.padding_right=8 \
+                                 click_script="$PLUGIN_DIR/front_app.sh"
+done
+
+##### Right: mood, net, battery, volume, clock #####
+sketchybar --add item clock right \
+           --set clock update_freq=10 \
+                       icon= \
+                       script="$PLUGIN_DIR/clock.sh" \
+           --subscribe clock mouse.clicked
+
+sketchybar --add item volume right \
+           --set volume script="$PLUGIN_DIR/volume.sh" \
+                        popup.align=center \
+                        popup.horizontal=on \
+                        popup.background.padding_left=8 \
+                        popup.background.padding_right=8 \
+                        popup.y_offset=5 \
+           --subscribe volume volume_change mouse.clicked mouse.exited.global \
+           --add item volume.low popup.volume \
+           --set volume.low icon=󰕿 \
+                            label.drawing=off \
+                            icon.color=0xaa1e1e1e \
+                            icon.padding_left=4 \
+                            icon.padding_right=2 \
+           --add slider volume.slider popup.volume 110 \
+           --set volume.slider slider.percentage=50 \
+                               slider.width=110 \
+                               slider.highlight_color=0x991e1e1e \
+                               slider.background.height=4 \
+                               slider.background.corner_radius=2 \
+                               slider.background.color=0x14000000 \
+                               slider.knob=● \
+                               slider.knob.drawing=on \
+                               slider.knob.color=0xcc1e1e1e \
+                               slider.knob.font="Hack Nerd Font:Bold:8.0" \
+                               slider.knob.y_offset=1.5 \
+                               padding_left=4 \
+                               padding_right=4 \
+                               script="$PLUGIN_DIR/volume.sh" \
+                               click_script="$PLUGIN_DIR/volume.sh" \
+           --subscribe volume.slider mouse.clicked volume_change \
+           --add item volume.percent popup.volume \
+           --set volume.percent label="50%" \
+                                icon.drawing=off \
+                                label.color=0xaa1e1e1e \
+                                label.padding_left=2 \
+                                label.padding_right=6 \
+                                label.width=34 \
+                                label.align=right
+
+sketchybar --add item battery right \
+           --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
+           --subscribe battery system_woke power_source_change
+
+sketchybar --add item net right \
+           --set net icon=󰓅 \
+                     label.drawing=off \
+                     update_freq=0 \
+                     script="$PLUGIN_DIR/net.sh" \
+           --subscribe net mouse.clicked
+
+# Mood icons — to add/remove see comments in plugins/mood.sh
+sketchybar --add item mood right \
+           --set mood icon=󰱴 \
+                      label.drawing=off \
+                      script="$PLUGIN_DIR/mood.sh" \
+                      popup.align=right \
+                      popup.horizontal=on \
+           --subscribe mood mouse.clicked mouse.exited.global \
+           --add item mood.happy popup.mood \
+           --set mood.happy icon=󰱱 label.drawing=off \
+                            icon.padding_left=8 icon.padding_right=8 \
+                            click_script="$PLUGIN_DIR/mood.sh" \
+           --add item mood.calm popup.mood \
+           --set mood.calm icon=󰱫 label.drawing=off \
+                           icon.padding_left=8 icon.padding_right=8 \
+                           click_script="$PLUGIN_DIR/mood.sh" \
+           --add item mood.focus popup.mood \
+           --set mood.focus icon=󰓾 label.drawing=off \
+                            icon.padding_left=8 icon.padding_right=8 \
+                            click_script="$PLUGIN_DIR/mood.sh" \
+           --add item mood.tired popup.mood \
+           --set mood.tired icon=󰒲 label.drawing=off \
+                            icon.padding_left=8 icon.padding_right=8 \
+                            click_script="$PLUGIN_DIR/mood.sh" \
+           --add item mood.sad popup.mood \
+           --set mood.sad icon=󰱶 label.drawing=off \
+                          icon.padding_left=8 icon.padding_right=8 \
+                          click_script="$PLUGIN_DIR/mood.sh" \
+           --add item mood.fire popup.mood \
+           --set mood.fire icon=󰈸 label.drawing=off \
+                           icon.padding_left=8 icon.padding_right=8 \
+                           click_script="$PLUGIN_DIR/mood.sh"
+
+##### Force all scripts to run the first time #####
+sketchybar --update
+NAME=focus SENDER=forced "$PLUGIN_DIR/focus.sh"

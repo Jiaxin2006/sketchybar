@@ -1,0 +1,14 @@
+# Personal history and runtime state must remain local.
+data/
+*.sqlite3
+*.sqlite3-*
+*.log
+.DS_Store
+__pycache__/
+*.py[cod]
+helpers/menus/bin/
+*.backup
+*.save
+*.bak
+.env
+.env.*
