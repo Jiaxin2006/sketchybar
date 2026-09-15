@@ -90,6 +90,18 @@ sketchybar --add item focus.note popup.focus \
              label.font="PingFang SC:Regular:11.0" label.color=0x991e1e1e \
              label.padding_left=12 label.padding_right=12
 
+# Destructive intent is explicit; discarded sessions remain recoverable locally.
+for action in discard restore; do
+  case "$action" in
+    discard) title="Discard current session" ;;
+    restore) title="Restore last discarded" ;;
+  esac
+  sketchybar --add item "focus.$action" popup.focus \
+             --set "focus.$action" icon.drawing=off label="$title" \
+               label.font="PingFang SC:Medium:12.0" label.padding_left=12 label.padding_right=12 \
+               click_script="NAME=focus.$action SENDER=mouse.clicked \"$PLUGIN_DIR/timer.sh\""
+done
+
 sketchybar --add item cpu left \
            --set cpu icon= \
                      update_freq=5 \

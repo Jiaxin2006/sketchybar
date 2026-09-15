@@ -51,7 +51,7 @@ class TimerTests(unittest.TestCase):
         self.event(0)
         self.event(60, 'timer_category.social')
         self.event(120, button='right')
-        self.event(121, button='right')
+        self.event(121, 'focus.discard')
         self.assertEqual(sum(self.totals(121)['week'].values()), 0)
 
     def test_midnight_and_monday_live_then_saved(self):
@@ -180,6 +180,55 @@ class TimerTests(unittest.TestCase):
         self.event(30)
         self.assertEqual(list(self.db.execute('SELECT category,seconds FROM sessions')),
                          [('social', 150)])
+
+    def test_paused_right_click_saves_for_all_timer_modes(self):
+        for mode, seconds in [('up', 60), ('down', 60), ('overtime', 1560)]:
+            with self.subTest(mode=mode):
+                self.s = t.fresh('course')
+                self.s.update(mode=mode, anchor=self.now)
+                self.event(seconds, button='right')
+                self.assertTrue(self.s['mode'].endswith('_paused'))
+                self.event(seconds + 30, button='right')
+                self.assertEqual(self.s['mode'], 'idle')
+                self.assertEqual(self.db.execute('SELECT seconds FROM sessions ORDER BY id DESC LIMIT 1').fetchone()[0], seconds)
+        self.assertEqual(self.db.execute('SELECT count(*) FROM discarded_sessions').fetchone()[0], 0)
+
+    def test_discard_restore_is_persistent_and_does_not_replace_active_timer(self):
+        self.event(0)
+        self.event(60, 'timer_category.social')
+        self.event(120, 'focus.discard')
+        self.assertEqual(self.s['mode'], 'idle')
+        self.assertEqual(sum(self.totals(120)['day'].values()), 0)
+        self.db.close()
+        self.db = t.connect(self.path)
+        self.s = t.load(self.db, self.now + 121)
+        self.event(130, 'timer_category.course')
+        self.event(140)
+        self.event(150, 'focus.restore')
+        self.assertEqual(self.s['mode'], 'up')
+        self.assertEqual(self.s['category'], 'course')
+        self.assertEqual(self.totals(150)['day']['social'], 120)
+        self.assertEqual(self.totals(150)['day']['course'], 10)
+        self.event(151, 'focus.restore')
+        self.assertEqual(self.totals(151)['day']['social'], 120)
+
+    def test_restore_discard_preserves_dates_and_final_category(self):
+        self.now = stamp('2026-09-13T23:59:00')
+        self.event(0)
+        self.event(90, 'timer_category.course')
+        self.event(120, 'focus.discard')
+        self.event(240, 'focus.restore')
+        self.assertEqual(list(self.db.execute('SELECT day,category,seconds FROM sessions')),
+                         [('2026-09-13', 'course', 60), ('2026-09-14', 'course', 60)])
+
+    def test_discard_transaction_rolls_back_archive_and_reset(self):
+        self.event(0)
+        with self.assertRaises(RuntimeError):
+            with self.db:
+                t.transition(self.db, self.s, self.now + 60, 'focus.discard', 'mouse.clicked')
+                raise RuntimeError('simulated failure')
+        self.assertEqual(t.load(self.db, self.now)['mode'], 'up')
+        self.assertEqual(self.db.execute('SELECT count(*) FROM discarded_sessions').fetchone()[0], 0)
 
     def test_transaction_rolls_back_save_and_state_together(self):
         self.event(0)

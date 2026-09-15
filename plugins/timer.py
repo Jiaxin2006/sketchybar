@@ -66,6 +66,7 @@ def connect(data=DATA):
     db = sqlite3.connect(data / 'focus.sqlite3', timeout=15)
     db.execute('CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, value TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY, day TEXT NOT NULL, category TEXT NOT NULL, seconds INTEGER NOT NULL)')
+    db.execute('CREATE TABLE IF NOT EXISTS discarded_sessions (id INTEGER PRIMARY KEY, discarded_at INTEGER NOT NULL, state_json TEXT NOT NULL, restored_at INTEGER)')
     return db
 
 
@@ -97,8 +98,48 @@ def total_elapsed(state, now):
     return state['elapsed'] + (max(0, now - state['anchor']) if running(state) else 0)
 
 
+def write_session(db, state):
+    """Commit the stored working intervals using the session's final category."""
+    totals = {}
+    for day, _, seconds in state['pending']:
+        totals[day] = totals.get(day, 0) + seconds
+    db.executemany('INSERT INTO sessions(day,category,seconds) VALUES(?,?,?)',
+                   [(day, state['category'], sec) for day, sec in totals.items() if sec > 0])
+
+
+def reset(state):
+    category = state['category']
+    state.clear()
+    state.update(fresh(category))
+
+
+def save_session(db, state, now):
+    settle(state, now)
+    write_session(db, state)
+    reset(state)
+
+
+def discard_session(db, state, now):
+    if state['mode'] == 'idle':
+        return False
+    pause(state, now)
+    db.execute('INSERT INTO discarded_sessions(discarded_at,state_json) VALUES(?,?)',
+               (now, json.dumps(state)))
+    reset(state)
+    return True
+
+
+def restore_last_discarded(db, now):
+    row = db.execute('SELECT id,state_json FROM discarded_sessions WHERE restored_at IS NULL ORDER BY id DESC LIMIT 1').fetchone()
+    if not row:
+        return False
+    write_session(db, json.loads(row[1]))
+    db.execute('UPDATE discarded_sessions SET restored_at=? WHERE id=?', (now, row[0]))
+    return True
+
+
 def transition(db, state, now, name, sender, button='left', closed=False):
-    """Return (saved, sound). Caller commits state and saved rows together."""
+    """Return (refresh_focus, sound). State/history changes commit together."""
     saved = False
     # Wake must be processed before clicks/ticks so sleep cannot enter the ledger.
     if sender == 'system_woke' and running(state):
@@ -106,7 +147,11 @@ def transition(db, state, now, name, sender, button='left', closed=False):
     elif sender == 'system_will_sleep' or closed:
         pause(state, now)
 
-    if name.startswith('timer_category.') and sender == 'mouse.clicked':
+    if name == 'focus.discard' and sender == 'mouse.clicked':
+        saved = discard_session(db, state, now)
+    elif name == 'focus.restore' and sender == 'mouse.clicked':
+        saved = restore_last_discarded(db, now)
+    elif name.startswith('timer_category.') and sender == 'mouse.clicked':
         category = name.split('.', 1)[1]
         if category in CATEGORIES:
             # The selection applies to the whole open session, fixed on save.
@@ -122,23 +167,12 @@ def transition(db, state, now, name, sender, button='left', closed=False):
             if button == 'left':
                 state.update(mode=mode.removesuffix('_paused'), anchor=now)
             elif button == 'right':
-                category = state['category']
-                state.clear()
-                state.update(fresh(category))
+                save_session(db, state, now)
+                saved = True
         elif button == 'right':
             pause(state, now)
         elif button == 'left' and (mode != 'down' or total_elapsed(state, now) >= POMO):
-            settle(state, now)
-            # Keep the actual dates, but freeze the final category for every part.
-            # Ignoring pending category tags also supports pre-update open sessions.
-            totals = {}
-            for day, _, seconds in state['pending']:
-                totals[day] = totals.get(day, 0) + seconds
-            db.executemany('INSERT INTO sessions(day,category,seconds) VALUES(?,?,?)',
-                           [(day, state['category'], sec) for day, sec in totals.items() if sec > 0])
-            category = state['category']
-            state.clear()
-            state.update(fresh(category))
+            save_session(db, state, now)
             saved = True
 
     sound = False
@@ -242,6 +276,15 @@ def render_stats(db, state, now, sender):
             args += ['--set', f'focus.{period}.{cat}', f'label={label}    {human(totals[period][cat])}']
     note = '本次按当前分类预览；结束时固定' if state['mode'] != 'idle' else '已保存的专注时间 · 每周一开始'
     args += ['--set', 'focus.note', f'label={note}']
+    last = db.execute('SELECT state_json FROM discarded_sessions WHERE restored_at IS NULL ORDER BY id DESC LIMIT 1').fetchone()
+    restore_label = 'Restore last discarded'
+    if last:
+        discarded = json.loads(last[0])
+        restore_label += f" · {CATEGORIES[discarded['category']]} {duration(discarded['elapsed'])}"
+    args += ['--set', 'focus.restore', f'label={restore_label}',
+             f'label.color={"0xff1e1e1e" if last else "0x661e1e1e"}',
+             '--set', 'focus.discard',
+             f'label.color={"0xffa33b32" if state['mode'] != 'idle' else "0x661e1e1e"}']
     if sender == 'mouse.clicked':
         bar('--set', 'timer_category', 'popup.drawing=off')
         current = json.loads(subprocess.check_output(['sketchybar', '--query', 'focus']))
@@ -290,6 +333,8 @@ def main():
             bar('--set', 'timer_category', f'popup.drawing={"toggle" if sender == "mouse.clicked" else "off"}')
         elif name.startswith('timer_category.'):
             bar('--set', 'timer_category', 'popup.drawing=off')
+        if name in ('focus.discard', 'focus.restore'):
+            bar('--set', 'focus', 'popup.drawing=off', 'update_freq=0')
         if saved:
             env = dict(os.environ, NAME='focus', SENDER='timer_saved')
             subprocess.run([str(CONFIG / 'plugins/focus.sh')], env=env, check=True)
