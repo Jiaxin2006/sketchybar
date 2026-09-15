@@ -4,6 +4,18 @@ macOS SketchyBar 配置：正计时、25 分钟番茄钟、科研 / 课程 / 社
 
 A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/weekly focus totals, and a one-click mood logger. Category labels: **Research · Study · Service · Other**. All history stays on your Mac; the timer uses Python's standard library and SQLite.
 
+## 实测截图
+
+以下截图来自实际运行。弹窗拍摄时临时使用不透明背景，避免透出下方文档；日常配置仍为半透明。
+
+![状态栏](docs/images/bar.png)
+
+| 分类选择 | 当天与本周统计 |
+| --- | --- |
+| ![分类选择](docs/images/categories.png) | ![分类统计](docs/images/statistics.png) |
+
+![心情选择](docs/images/moods.png)
+
 ## 计时和分类
 
 点击计时器旁的类别（例如 `Research ▾`），选择 **Research（科研）、Study（课程）、Service（社工）、Other（未分类）**。新安装默认科研，之后记住选择。切换桌面、显示器或前台应用时，下拉菜单会自动关闭。计时进行中或暂停时都可以修改分类，计时长度保持连续。**保存结束那一刻的类别决定整次计时的归属**；例如先选 Research，结束前改成 Study，整次时间都会记入 Study。已保存记录的类别不会随下一次选择改变。
