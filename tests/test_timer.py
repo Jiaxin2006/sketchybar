@@ -37,11 +37,11 @@ class TimerTests(unittest.TestCase):
         self.event(0)
         self.event(60, 'timer_category.course')
         self.event(120, button='right')
-        self.assertEqual(self.totals(500)['day']['research'], 60)
-        self.assertEqual(self.totals(500)['day']['course'], 60)
+        self.assertEqual(self.totals(500)['day']['research'], 0)
+        self.assertEqual(self.totals(500)['day']['course'], 120)
         self.event(600)
         self.event(660)
-        self.assertEqual(self.totals(1000)['day']['course'], 120)
+        self.assertEqual(self.totals(1000)['day']['course'], 180)
         self.assertEqual(self.s['mode'], 'idle')
         self.assertEqual(sum(self.totals(1000)['day'].values()), 180)
         self.event(1001, sender='routine')
@@ -129,6 +129,57 @@ class TimerTests(unittest.TestCase):
         self.event(10)
         self.event(20)
         self.assertEqual(self.totals(20)['day']['uncategorized'], 1610)
+
+    def test_final_selection_covers_whole_session_and_saved_history_stays_fixed(self):
+        self.event(0)
+        self.event(60, 'timer_category.course')
+        self.event(119, 'timer_category.social')
+        self.assertEqual(self.s['mode'], 'up')
+        self.assertEqual(t.total_elapsed(self.s, self.now + 119), 119)
+        self.assertEqual(self.totals(119)['day']['social'], 119)
+        self.event(120)
+        self.event(121, 'timer_category.research')
+        self.assertEqual(list(self.db.execute('SELECT category,seconds FROM sessions')),
+                         [('social', 120)])
+        self.assertEqual(self.totals(121)['day']['social'], 120)
+        self.event(130)  # A separate session uses the newly selected category.
+        self.event(140)
+        self.assertEqual(self.totals(140)['day']['research'], 10)
+        self.assertEqual(self.totals(140)['day']['social'], 120)
+
+    def test_final_category_applies_across_week_boundary(self):
+        self.now = stamp('2026-09-13T23:59:00')
+        self.event(0)
+        self.event(90, 'timer_category.course')
+        self.event(120)
+        self.assertEqual(list(self.db.execute('SELECT day,category,seconds FROM sessions')),
+                         [('2026-09-13', 'course', 60), ('2026-09-14', 'course', 60)])
+        self.assertEqual(self.totals(120)['week']['course'], 60)
+
+    def test_change_category_while_pomodoro_paused_and_in_overtime(self):
+        self.event(0, button='right')
+        self.event(60, 'timer_category.course')
+        self.assertEqual(self.s['mode'], 'down')
+        self.event(100, button='right')
+        self.event(150, 'timer_category.social')
+        self.assertEqual(self.s['mode'], 'down_paused')
+        self.assertEqual(self.totals(150)['day']['social'], 100)
+        self.event(200)
+        self.event(1601, sender='routine')
+        self.event(1605, 'timer_category.research')
+        self.assertEqual(self.s['mode'], 'overtime')
+        self.event(1610)
+        self.assertEqual(self.totals(1610)['day']['research'], 1510)
+        self.assertEqual(self.totals(1610)['day']['social'], 0)
+
+    def test_open_session_from_previous_version_uses_final_category(self):
+        self.s.update(mode='up_paused', category='social', elapsed=120,
+                      pending=[['2026-09-15', 'research', 60], ['2026-09-15', 'course', 60]])
+        self.assertEqual(self.totals(0)['day']['social'], 120)
+        self.event(0)
+        self.event(30)
+        self.assertEqual(list(self.db.execute('SELECT category,seconds FROM sessions')),
+                         [('social', 150)])
 
     def test_transaction_rolls_back_save_and_state_together(self):
         self.event(0)

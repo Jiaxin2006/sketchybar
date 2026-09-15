@@ -109,7 +109,7 @@ def transition(db, state, now, name, sender, button='left', closed=False):
     if name.startswith('timer_category.') and sender == 'mouse.clicked':
         category = name.split('.', 1)[1]
         if category in CATEGORIES:
-            settle(state, now)
+            # The selection applies to the whole open session, fixed on save.
             state['category'] = category
     elif name == 'timer' and sender == 'mouse.clicked':
         mode = state['mode']
@@ -129,12 +129,13 @@ def transition(db, state, now, name, sender, button='left', closed=False):
             pause(state, now)
         elif button == 'left' and (mode != 'down' or total_elapsed(state, now) >= POMO):
             settle(state, now)
-            # Coalesce each day's category pieces into one track segment per session.
+            # Keep the actual dates, but freeze the final category for every part.
+            # Ignoring pending category tags also supports pre-update open sessions.
             totals = {}
-            for day, category, seconds in state['pending']:
-                totals[day, category] = totals.get((day, category), 0) + seconds
+            for day, _, seconds in state['pending']:
+                totals[day] = totals.get(day, 0) + seconds
             db.executemany('INSERT INTO sessions(day,category,seconds) VALUES(?,?,?)',
-                           [(day, cat, sec) for (day, cat), sec in totals.items() if sec > 0])
+                           [(day, state['category'], sec) for day, sec in totals.items() if sec > 0])
             category = state['category']
             state.clear()
             state.update(fresh(category))
@@ -171,7 +172,7 @@ def rows(db, state, now, data=DATA, live=True):
     result.extend(db.execute('SELECT day,category,seconds FROM sessions WHERE day BETWEEN ? AND ?',
                              (monday.isoformat(), today.isoformat())))
     if live:
-        result.extend(state['pending'])
+        result.extend((day, state['category'], sec) for day, _, sec in state['pending'])
         if running(state):
             result.extend(split_interval(state['anchor'], now, state['category']))
     return result
@@ -239,7 +240,7 @@ def render_stats(db, state, now, sender):
         args += ['--set', f'focus.{period}', f'label={title}  共 {human(sum(totals[period].values()))}']
         for cat, label in CATEGORIES.items():
             args += ['--set', f'focus.{period}.{cat}', f'label={label}    {human(totals[period][cat])}']
-    note = '含本次未保存计时；丢弃后扣除' if state['mode'] != 'idle' else '已保存的专注时间 · 每周一开始'
+    note = '本次按当前分类预览；结束时固定' if state['mode'] != 'idle' else '已保存的专注时间 · 每周一开始'
     args += ['--set', 'focus.note', f'label={note}']
     if sender == 'mouse.clicked':
         bar('--set', 'timer_category', 'popup.drawing=off')

@@ -59,7 +59,7 @@ for category in research course social uncategorized; do
                label.font="PingFang SC:Medium:12.0" label.width=84 label.align=left \
                label.padding_left=10 label.padding_right=10 padding_left=5 padding_right=5 \
                background.color=0x12000000 background.corner_radius=5 background.height=25 \
-               click_script="\"$PLUGIN_DIR/timer.sh\""
+               click_script="NAME=timer_category.$category SENDER=mouse.clicked \"$PLUGIN_DIR/timer.sh\""
 done
 
 # Today's total + continuous per-session track (built by plugins/focus.sh).
