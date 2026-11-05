@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('timer', Path(__file__).parents[1] / 'plugins/timer.py')
 t = importlib.util.module_from_spec(spec)
@@ -101,6 +102,34 @@ class TimerTests(unittest.TestCase):
         t.transition(self.db, self.s, self.now + 20, 'timer', 'routine', closed=True)
         self.assertEqual(self.s['mode'], 'up_paused')
         self.assertEqual(self.s['elapsed'], 20)
+
+    def test_lid_sleep_policy_preserves_external_display_clamshell(self):
+        for lid, causes_sleep, expected_pause in [
+                ('No', 'Yes', False), ('Yes', 'No', False), ('Yes', 'Yes', True)]:
+            with self.subTest(lid=lid, causes_sleep=causes_sleep):
+                ioreg = f'"AppleClamshellState" = {lid}\n"AppleClamshellCausesSleep" = {causes_sleep}'
+                state = t.fresh()
+                state.update(mode='up', anchor=self.now)
+                with self.db:
+                    t.transition(self.db, state, self.now + 20, 'timer', 'routine',
+                                 closed=t.lid_closed(ioreg))
+                self.assertEqual(state['mode'], 'up_paused' if expected_pause else 'up')
+                self.assertEqual(t.total_elapsed(state, self.now + 40),
+                                 20 if expected_pause else 40)
+
+    def test_reading_history_and_selected_category_survive_reopen(self):
+        self.event(0, 'timer_category.reading')
+        self.event(1)
+        self.event(61)
+        self.db.close()
+        self.db = t.connect(self.path)
+        self.s = t.load(self.db, self.now + 62)
+        self.assertEqual(self.s['category'], 'reading')
+        self.assertEqual(self.totals(62)['day']['reading'], 60)
+        self.assertEqual(self.totals(62)['day']['uncategorized'], 0)
+        with patch.object(t, 'bar') as render:
+            t.render_timer(self.s, self.now + 62)
+        self.assertIn('label=Reading ▾', render.call_args.args)
 
     def test_legacy_history_and_week_boundaries(self):
         (self.path / 'focus_2026-09-15.log').write_text('14:24:04 4575\ninvalid\n12:00:00 xyz\n')

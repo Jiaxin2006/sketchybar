@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-CATEGORIES = {'research': 'Research', 'course': 'Study', 'social': 'Service', 'uncategorized': 'Other'}
+CATEGORIES = {'research': 'Research', 'course': 'Study', 'social': 'Service', 'reading': 'Reading', 'uncategorized': 'Other'}
 CLOSE_EVENTS = {'mouse.exited.global', 'space_change', 'display_change', 'front_app_switched'}
 POMO = 25 * 60
 CONFIG = Path(os.environ.get('CONFIG_DIR', Path.home() / '.config/sketchybar'))
@@ -136,6 +136,11 @@ def restore_last_discarded(db, now):
     write_session(db, json.loads(row[1]))
     db.execute('UPDATE discarded_sessions SET restored_at=? WHERE id=?', (now, row[0]))
     return True
+
+
+def lid_closed(ioreg):
+    """A closed lid on an external display (clamshell mode) does not cause sleep; keep timing."""
+    return '"AppleClamshellState" = Yes' in ioreg and '"AppleClamshellCausesSleep" = Yes' in ioreg
 
 
 def transition(db, state, now, name, sender, button='left', closed=False):
@@ -316,7 +321,7 @@ def main():
             closed = False
             if running(state) and sender != 'system_woke':
                 result = subprocess.run(['ioreg', '-r', '-k', 'AppleClamshellState', '-d', '1'], capture_output=True, text=True)
-                closed = '"AppleClamshellState" = Yes' in result.stdout
+                closed = lid_closed(result.stdout)
             saved, sound = transition(db, state, now, name, sender, os.environ.get('BUTTON', 'left'), closed)
         if action == 'durations':
             today = dt.datetime.fromtimestamp(now).date().isoformat()

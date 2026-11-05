@@ -1,8 +1,8 @@
 # SketchyBar · Focus & Mood
 
-macOS SketchyBar 配置：正计时、25 分钟番茄钟、科研 / 课程 / 社工分类，以及当天、本周统计。保留 CPU、内存、电量、音量、应用菜单、网络和心情记录等状态栏组件。
+macOS SketchyBar 配置：正计时、25 分钟番茄钟、科研 / 课程 / 社工 / 阅读分类，以及当天、本周统计。保留 CPU、内存、电量、音量、应用菜单、网络和心情记录等状态栏组件。
 
-A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/weekly focus totals, and a one-click mood logger. Category labels: **Research · Study · Service · Other**. All history stays on your Mac; the timer uses Python's standard library and SQLite.
+A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/weekly focus totals, and a one-click mood logger. Category labels: **Research · Study · Service · Reading · Other**. All history stays on your Mac; the timer uses Python's standard library and SQLite.
 
 ## 实测截图
 
@@ -18,7 +18,7 @@ A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/w
 
 ## 计时和分类
 
-点击计时器旁的类别（例如 `Research ▾`），选择 **Research（科研）、Study（课程）、Service（社工）、Other（未分类）**。新安装默认科研，之后记住选择。切换桌面、显示器或前台应用时，下拉菜单会自动关闭。计时进行中或暂停时都可以修改分类，计时长度保持连续。**保存结束那一刻的类别决定整次计时的归属**；例如先选 Research，结束前改成 Study，整次时间都会记入 Study。已保存记录的类别不会随下一次选择改变。
+点击计时器旁的类别（例如 `Research ▾`），选择 **Research（科研）、Study（课程）、Service（社工）、Reading（阅读）、Other（未分类）**。新安装默认科研，之后记住选择。切换桌面、显示器或前台应用时，下拉菜单会自动关闭。计时进行中或暂停时都可以修改分类，计时长度保持连续。**保存结束那一刻的类别决定整次计时的归属**；例如先选 Research，结束前改成 Study，整次时间都会记入 Study。已保存记录的类别不会随下一次选择改变。
 
 | 当前状态 | 左键点计时器 | 右键点计时器 |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/w
 | 番茄倒计时 | 继续计时 | 暂停 |
 | 暂停 | 继续 | 保存并结束 |
 
-番茄钟到时播放提示音，随后显示超时长度，保存时包含前 25 分钟。合盖或系统休眠自动暂停，唤醒后手动继续。重载配置保留状态；重启电脑后恢复为暂停并排除关机时间。
+番茄钟到时播放提示音，随后显示超时长度，保存时包含前 25 分钟。系统休眠或合盖触发休眠时自动暂停，唤醒后手动继续。外接显示器合盖办公时，如果系统报告合盖不会触发休眠，则继续计时。重载配置保留状态；重启后会检查启动时间以暂停旧计时，但距上次刷新不足 60 秒的快速重启仍有边界问题。
 
 ## 误操作与恢复
 
@@ -43,7 +43,7 @@ A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/w
 
 - 当天：本机时区的今天 00:00 起。
 - 本周：周一 00:00 起，到当前时刻；标题显示周一至周日的日期范围。
-- 每组显示科研、课程、社工、未分类，以及合计。
+- 每组显示科研、课程、社工、阅读、未分类，以及合计。
 - 弹窗包含正在进行或暂停的本次计时，整次暂按当前选中类别预览，保存时固定。打开时立即更新，此后每 10 秒刷新；丢弃后该次时间从统计中扣除。
 - 顶栏累计时长和轨迹展示**已保存**的当日时间，保存或跨日时更新。
 - 跨午夜、跨周的计时按实际工作区间拆分；暂停时间不计入。
@@ -56,7 +56,7 @@ A minimal macOS status bar with a categorized stopwatch, Pomodoro timer, daily/w
 
 ## 实测范围
 
-在 macOS 26.5 / SketchyBar 2.24.0 上加载验证；19 项自动化计时测试通过。已实测桌面、显示器和前台应用切换事件关闭分类与统计弹窗，并停止统计弹窗轮询。合盖和休眠逻辑有自动化覆盖，尚未做真实合盖测试。
+原配置在 macOS 26.5 / SketchyBar 2.24.0 上加载验证；当前 21 项自动化计时测试通过，包含阅读分类持久化和外接显示器合盖判断。已实测桌面、显示器和前台应用切换事件关闭分类与统计弹窗，并停止统计弹窗轮询。合盖和休眠逻辑有自动化覆盖，尚未做真实合盖测试。现有截图来自加入阅读分类之前的版本。
 
 ## 安装
 
